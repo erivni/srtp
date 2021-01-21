@@ -69,6 +69,8 @@ func (s *srtpCipherAesCmHmacSha1) authTagLen() int {
 }
 
 func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
+	return s.encryptRTPNoOp(dst, header, payload, roc)
+
 	// Grow the given buffer to fit the output.
 	dst = growBufferSize(dst, header.MarshalSize()+len(payload)+s.authTagLen())
 
@@ -92,6 +94,21 @@ func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, pay
 
 	// Write the auth tag to the dest.
 	copy(dst[n:], authTag)
+
+	return dst, nil
+}
+
+func (s *srtpCipherAesCmHmacSha1) encryptRTPNoOp(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
+	// Grow the given buffer to fit the output.
+	dst = growBufferSize(dst, header.MarshalSize()+len(payload))
+
+	// Copy the header unencrypted.
+	n, err := header.MarshalTo(dst)
+	if err != nil {
+		return nil, err
+	}
+
+	copy(dst[n:], payload)
 
 	return dst, nil
 }
@@ -124,6 +141,26 @@ func (s *srtpCipherAesCmHmacSha1) decryptRTP(dst, ciphertext []byte, header *rtp
 }
 
 func (s *srtpCipherAesCmHmacSha1) encryptRTCP(dst, decrypted []byte, srtcpIndex uint32, ssrc uint32) ([]byte, error) {
+	//return s.encryptRTCPNoOp(dst, decrypted, srtcpIndex, ssrc)
+	dst = allocateIfMismatch(dst, decrypted)
+
+	// Encrypt everything after header
+	stream := cipher.NewCTR(s.srtcpBlock, generateCounter(uint16(srtcpIndex&0xffff), srtcpIndex>>16, ssrc, s.srtcpSessionSalt))
+	stream.XORKeyStream(dst[8:], dst[8:])
+
+	// Add SRTCP Index and set Encryption bit
+	dst = append(dst, make([]byte, 4)...)
+	binary.BigEndian.PutUint32(dst[len(dst)-4:], srtcpIndex)
+	dst[len(dst)-4] |= 0x80
+
+	authTag, err := s.generateSrtcpAuthTag(dst)
+	if err != nil {
+		return nil, err
+	}
+	return append(dst, authTag...), nil
+}
+
+func (s *srtpCipherAesCmHmacSha1) encryptRTCPNoOp(dst, decrypted []byte, srtcpIndex uint32, ssrc uint32) ([]byte, error) {
 	dst = allocateIfMismatch(dst, decrypted)
 
 	// Encrypt everything after header
