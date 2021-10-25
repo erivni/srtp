@@ -8,6 +8,7 @@ import ( //nolint:gci
 	"crypto/subtle"
 	"encoding/binary"
 	"hash"
+	"os"
 
 	"github.com/pion/rtp"
 )
@@ -20,10 +21,16 @@ type srtpCipherAesCmHmacSha1 struct {
 	srtcpSessionSalt []byte
 	srtcpSessionAuth hash.Hash
 	srtcpBlock       cipher.Block
+	skipEncryption   bool
 }
 
 func newSrtpCipherAesCmHmacSha1(masterKey, masterSalt []byte) (*srtpCipherAesCmHmacSha1, error) {
 	s := &srtpCipherAesCmHmacSha1{}
+	
+	if os.Getenv("HYPERSCALE_WEBRTC_SERVER_NO_ENCRYPT") == "true"{
+		s.skipEncryption = true
+	}
+	
 	srtpSessionKey, err := aesCmKeyDerivation(labelSRTPEncryption, masterKey, masterSalt, 0, len(masterKey))
 	if err != nil {
 		return nil, err
@@ -73,8 +80,10 @@ func (s *srtpCipherAesCmHmacSha1) aeadAuthTagLen() int {
 }
 
 func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
-	// ** disabled encryption **
-	return s.encryptRTPNoOp(dst, header, payload, roc)
+	if s.skipEncryption {
+		// ** hyperscale: disabled encryption **
+		return s.encryptRTPNoOp(dst, header, payload, roc)
+	}
 	
 	
 	// Grow the given buffer to fit the output.
