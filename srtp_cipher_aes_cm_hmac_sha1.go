@@ -48,7 +48,7 @@ func newSrtpCipherAesCmHmacSha1(masterKey, masterSalt []byte) (*srtpCipherAesCmH
 			parsed, _ := strconv.ParseUint(positionStr, 10, 8)
 			s.extensionEncryptionAttrPos = uint8(parsed)
 		}
-	}
+	} 
 
 
 	srtpSessionKey, err := aesCmKeyDerivation(labelSRTPEncryption, masterKey, masterSalt, 0, len(masterKey))
