@@ -8,7 +8,6 @@ import ( //nolint:gci
 	"crypto/sha1" //nolint:gosec
 	"crypto/subtle"
 	"encoding/binary"
-	"fmt"
 	"hash"
 	"os"
 	"strconv"
