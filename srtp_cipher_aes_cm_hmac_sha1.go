@@ -104,15 +104,11 @@ func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, pay
 	if s.hyperscaleEncryption && header.GetExtension(s.extensionSampleAttrId) != nil {
 		extension := header.GetExtension(s.extensionSampleAttrId)[0]
 		shouldEncrypt := extension & 32 // 32 = 00100000
-		if shouldEncrypt != 32 {
-			fmt.Println(" ------ NO ")
+		if shouldEncrypt != 32 {			
 			return s.encryptRTPNoOp(dst, header, payload, roc)
 		}
-	} else {
-		fmt.Println(" -------- HYPERSCALE OFF ")
 	}
-	fmt.Println(" ------ YES ")
-
+	
 	if s.skipEncryption {
 		// ** hyperscale: disabled encryption **
 		return s.encryptRTPNoOp(dst, header, payload, roc)
