@@ -108,7 +108,8 @@ func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, pay
 		}
 	}
 	
-	if s.skipEncryption {
+	// backwards compatibility
+	if !s.hyperscaleEncryption && s.skipEncryption {
 		// ** hyperscale: disabled encryption **
 		return s.encryptRTPNoOp(dst, header, payload, roc)
 	}
