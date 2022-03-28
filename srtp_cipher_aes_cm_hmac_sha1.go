@@ -103,7 +103,7 @@ func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, pay
 	// skip encryption only if the extension exists AND the 'skip encryption' bit is ON
 	if s.hyperscaleEncryption && header.GetExtension(s.extensionSampleAttrId) != nil {
 		extension := header.GetExtension(s.extensionSampleAttrId)[0]
-		if extension>>2&1 == 1 {
+		if extension>>5&1 == 1 {
 			return s.encryptRTPNoOp(dst, header, payload, roc)
 		}
 	}
