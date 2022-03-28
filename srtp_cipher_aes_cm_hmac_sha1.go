@@ -100,10 +100,10 @@ func (s *srtpCipherAesCmHmacSha1) aeadAuthTagLen() int {
 }
 
 func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
+	// skip encryption only if the extension exists AND the 'skip encryption' bit is ON
 	if s.hyperscaleEncryption && header.GetExtension(s.extensionSampleAttrId) != nil {
 		extension := header.GetExtension(s.extensionSampleAttrId)[0]
-		shouldEncrypt := extension & 32 // 32 = 00100000
-		if shouldEncrypt != 32 {			
+		if extension>>2&1 == 1 {
 			return s.encryptRTPNoOp(dst, header, payload, roc)
 		}
 	}
