@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
+	"os"
 
 	"github.com/pion/rtp"
 )
@@ -18,10 +19,16 @@ type srtpCipherAeadAesGcm struct {
 	srtpCipher, srtcpCipher cipher.AEAD
 
 	srtpSessionSalt, srtcpSessionSalt []byte
+
+	skipEncryption bool
 }
 
 func newSrtpCipherAeadAesGcm(profile ProtectionProfile, masterKey, masterSalt []byte) (*srtpCipherAeadAesGcm, error) {
 	s := &srtpCipherAeadAesGcm{ProtectionProfile: profile}
+
+	if os.Getenv("HYPERSCALE_WEBRTC_SERVER_NO_ENCRYPT") == "true" {
+		s.skipEncryption = true
+	}
 
 	srtpSessionKey, err := aesCmKeyDerivation(labelSRTPEncryption, masterKey, masterSalt, 0, len(masterKey))
 	if err != nil {
@@ -62,8 +69,26 @@ func newSrtpCipherAeadAesGcm(profile ProtectionProfile, masterKey, masterSalt []
 	return s, nil
 }
 
+func (s *srtpCipherAeadAesGcm) encryptRTPNoOp(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
+	// Grow the given buffer to fit the output.
+	dst = growBufferSize(dst, header.MarshalSize()+len(payload))
+
+	// Copy the header unencrypted.
+	n, err := header.MarshalTo(dst)
+	if err != nil {
+		return nil, err
+	}
+
+	copy(dst[n:], payload)
+
+	return dst, nil
+}
+
 func (s *srtpCipherAeadAesGcm) encryptRTP(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
 	// Grow the given buffer to fit the output.
+	if s.skipEncryption {
+		return s.encryptRTPNoOp(dst, header, payload, roc)
+	}
 	authTagLen, err := s.aeadAuthTagLen()
 	if err != nil {
 		return nil, err
