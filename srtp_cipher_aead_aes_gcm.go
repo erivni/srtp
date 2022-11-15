@@ -18,14 +18,14 @@ type srtpCipherAeadAesGcm struct {
 
 	srtpSessionSalt, srtcpSessionSalt []byte
 
-	shouldDecrypt bool
+	skipDecryption bool
 }
 
 func newSrtpCipherAeadAesGcm(masterKey, masterSalt []byte) (*srtpCipherAeadAesGcm, error) {
 	s := &srtpCipherAeadAesGcm{}
 
 	if os.Getenv("HYPERSCALE_WEBRTC_CLIENT_NO_DECRYPT") == "true" {
-		s.shouldDecrypt = false
+		s.skipDecryption = true
 	}
 
 	srtpSessionKey, err := aesCmKeyDerivation(labelSRTPEncryption, masterKey, masterSalt, 0, len(masterKey))
@@ -92,7 +92,7 @@ func (s *srtpCipherAeadAesGcm) encryptRTP(dst []byte, header *rtp.Header, payloa
 }
 
 func (s *srtpCipherAeadAesGcm) decryptRTP(dst, ciphertext []byte, header *rtp.Header, headerLen int, roc uint32) ([]byte, error) {
-	if !s.shouldDecrypt {
+	if s.skipDecryption {
 		return ciphertext, nil
 	}
 	// Grow the given buffer to fit the output.
