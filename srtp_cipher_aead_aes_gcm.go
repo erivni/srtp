@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
+	"os"
 
 	"github.com/pion/rtp"
 )
@@ -16,10 +17,16 @@ type srtpCipherAeadAesGcm struct {
 	srtpCipher, srtcpCipher cipher.AEAD
 
 	srtpSessionSalt, srtcpSessionSalt []byte
+
+	skipDecryption bool
 }
 
 func newSrtpCipherAeadAesGcm(masterKey, masterSalt []byte) (*srtpCipherAeadAesGcm, error) {
 	s := &srtpCipherAeadAesGcm{}
+
+	if os.Getenv("HYPERSCALE_WEBRTC_CLIENT_NO_DECRYPT") == "true" {
+		s.skipDecryption = true
+	}
 
 	srtpSessionKey, err := aesCmKeyDerivation(labelSRTPEncryption, masterKey, masterSalt, 0, len(masterKey))
 	if err != nil {
@@ -85,6 +92,9 @@ func (s *srtpCipherAeadAesGcm) encryptRTP(dst []byte, header *rtp.Header, payloa
 }
 
 func (s *srtpCipherAeadAesGcm) decryptRTP(dst, ciphertext []byte, header *rtp.Header, headerLen int, roc uint32) ([]byte, error) {
+	if s.skipDecryption {
+		return ciphertext, nil
+	}
 	// Grow the given buffer to fit the output.
 	nDst := len(ciphertext) - s.aeadAuthTagLen()
 	if nDst < 0 {
