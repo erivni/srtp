@@ -25,19 +25,19 @@ type srtpCipherAesCmHmacSha1 struct {
 	srtpSessionAuth hash.Hash
 	srtpBlock       cipher.Block
 
-	srtcpSessionSalt []byte
-	srtcpSessionAuth hash.Hash
-	srtcpBlock       cipher.Block
-	skipEncryption   bool
-	hyperscaleEncryption bool
-	extensionSampleAttrId uint8
+	srtcpSessionSalt           []byte
+	srtcpSessionAuth           hash.Hash
+	srtcpBlock                 cipher.Block
+	skipEncryption             bool
+	hyperscaleEncryption       bool
+	extensionSampleAttrId      uint8
 	extensionEncryptionAttrPos uint8
 }
 
 func newSrtpCipherAesCmHmacSha1(profile ProtectionProfile, masterKey, masterSalt []byte) (*srtpCipherAesCmHmacSha1, error) {
 	s := &srtpCipherAesCmHmacSha1{ProtectionProfile: profile}
 
-	if os.Getenv("HYPERSCALE_WEBRTC_SERVER_NO_ENCRYPT") == "true"{
+	if os.Getenv("HYPERSCALE_WEBRTC_SERVER_NO_ENCRYPT") == "true" {
 		s.skipEncryption = true
 	}
 
@@ -53,8 +53,7 @@ func newSrtpCipherAesCmHmacSha1(profile ProtectionProfile, masterKey, masterSalt
 			parsed, _ := strconv.ParseUint(positionStr, 10, 8)
 			s.extensionEncryptionAttrPos = uint8(parsed)
 		}
-	} 
-
+	}
 
 	srtpSessionKey, err := aesCmKeyDerivation(labelSRTPEncryption, masterKey, masterSalt, 0, len(masterKey))
 	if err != nil {
@@ -97,18 +96,19 @@ func newSrtpCipherAesCmHmacSha1(profile ProtectionProfile, masterKey, masterSalt
 }
 
 func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
+	skipEncryption := false
+
 	// skip encryption only if the extension exists AND the 'skip encryption' bit is ON
 	if s.hyperscaleEncryption && header.GetExtension(s.extensionSampleAttrId) != nil {
 		extension := header.GetExtension(s.extensionSampleAttrId)[0]
 		if extension>>5&1 == 1 {
-			return s.encryptRTPNoOp(dst, header, payload, roc)
+			skipEncryption = true
 		}
 	}
-	
+
 	// backwards compatibility
 	if !s.hyperscaleEncryption && s.skipEncryption {
-		// ** hyperscale: disabled encryption **
-		return s.encryptRTPNoOp(dst, header, payload, roc)
+		skipEncryption = true
 	}
 
 	// Grow the given buffer to fit the output.
@@ -124,12 +124,14 @@ func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, pay
 		return nil, err
 	}
 
-	// Encrypt the payload
-	counter := generateCounter(header.SequenceNumber, roc, header.SSRC, s.srtpSessionSalt)
-	if err = xorBytesCTR(s.srtpBlock, counter[:], dst[n:], payload); err != nil {
-		return nil, err
+	if !skipEncryption {
+		// Encrypt the payload
+		counter := generateCounter(header.SequenceNumber, roc, header.SSRC, s.srtpSessionSalt)
+		if err = xorBytesCTR(s.srtpBlock, counter[:], dst[n:], payload); err != nil {
+			return nil, err
+		}
+		n += len(payload)
 	}
-	n += len(payload)
 
 	// Generate the auth tag.
 	authTag, err := s.generateSrtpAuthTag(dst[:n], roc)
@@ -139,21 +141,6 @@ func (s *srtpCipherAesCmHmacSha1) encryptRTP(dst []byte, header *rtp.Header, pay
 
 	// Write the auth tag to the dest.
 	copy(dst[n:], authTag)
-
-	return dst, nil
-}
-
-func (s *srtpCipherAesCmHmacSha1) encryptRTPNoOp(dst []byte, header *rtp.Header, payload []byte, roc uint32) (ciphertext []byte, err error) {
-	// Grow the given buffer to fit the output.
-	dst = growBufferSize(dst, header.MarshalSize()+len(payload))
-
-	// Copy the header unencrypted.
-	n, err := header.MarshalTo(dst)
-	if err != nil {
-		return nil, err
-	}
-
-	copy(dst[n:], payload)
 
 	return dst, nil
 }
