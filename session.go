@@ -129,6 +129,7 @@ func (s *session) start(localMasterKey, localMasterSalt, remoteMasterKey, remote
 	}
 
 	go func() {
+		const MaxPacketErrorPayloadLog = 32
 		defer func() {
 			close(s.newStream)
 
@@ -150,7 +151,11 @@ func (s *session) start(localMasterKey, localMasterSalt, remoteMasterKey, remote
 			}
 
 			if err = child.decrypt(b[:i]); err != nil {
-				s.log.Info(err.Error())
+				if i <= MaxPacketErrorPayloadLog {
+					s.log.Errorf("%s, packet length: %d, payload: %v", err.Error(), i, b[:i])
+				} else {
+					s.log.Errorf("%s, packet length: %d, payload (First %d bytes): %v", err.Error(), i, MaxPacketErrorPayloadLog, b[:MaxPacketErrorPayloadLog])
+				}
 			}
 		}
 	}()
