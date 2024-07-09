@@ -129,7 +129,7 @@ func (s *session) start(localMasterKey, localMasterSalt, remoteMasterKey, remote
 	}
 
 	go func() {
-		const MaxPacketErrorPayloadLog = 32
+		const MaxPacketErrorPayloadLog = 64
 		defer func() {
 			close(s.newStream)
 
